@@ -7,6 +7,8 @@ _MjSim_render_lock = Lock()
 
 ctypedef void (*substep_udd_t)(const mjModel* m, mjData* d)
 
+cdef void myController(const mjModel* mArg, mjData* dArg):
+    print("TEST")
 
 cdef class MjSim(object):
     """MjSim represents a running simulation including its state.
@@ -87,6 +89,8 @@ cdef class MjSim(object):
         self.render_callback = render_callback
         self.extras = {}
         self.set_substep_callback(substep_callback, userdata_names)
+        global mjcb_control
+        mjcb_control = myController
 
     def reset(self):
         """

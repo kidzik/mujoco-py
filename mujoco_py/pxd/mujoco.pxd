@@ -21,7 +21,7 @@ cdef extern from "mujoco.h" nogil:
 
     # # callbacks extending computation pipeline
     # mjfGeneric  mjcb_passive;
-    # mjfGeneric  mjcb_control;
+    mjfGeneric  mjcb_control;
     # mjfSensor   mjcb_sensor;
     # mjfTime     mjcb_time;
     # mjfAct      mjcb_act_dyn;
