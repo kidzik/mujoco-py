@@ -2,13 +2,55 @@ from xml.dom import minidom
 from mujoco_py.utils import remove_empty_lines
 from mujoco_py.builder import build_callback_fn
 from threading import Lock
+from libc.math cimport fmod
 
 _MjSim_render_lock = Lock()
 
 ctypedef void (*substep_udd_t)(const mjModel* m, mjData* d)
 
+len_min = -1
+len_opt = .3
+len_max = .75
+
+# The FL curve is just a piecewise quadratic bounded from below by 0.
+def FL(t):
+    if t < len_min or t > len_max:
+        return 0.0
+    if t < len_opt:
+        return 1.0 - ( (t-len_opt)/(len_opt - len_min) )**2
+    return 1.0 - ( (t-len_opt)/(len_max - len_opt) )**2
+
+max_shortening = -1
+eccentric_multiplier = 1.4
+iso_slope = 5.0
+
+# The FV curve is two hyperbolas of the form g(x) = A + B/(x + C)
+# stitched together at 0 and bounded from below by 0; where A, B
+# and C are found according the the constraints g(0)=1, g'(0)=IS,
+# g(inf)=EM, g(MSV)=0.
+def FV(t):
+    if t < max_shortening:
+        return 0.0
+    if t < 0.0:
+        A = 1.0 / (1.0 + iso_slope * max_shortening)
+        C = -max_shortening * A
+    else:
+        A = eccentric_multiplier
+        C = (A - 1) / iso_slope
+
+    B = -iso_slope * C**2
+    
+    return A + B/(t + C)
+    
 cdef void myController(const mjModel* mArg, mjData* dArg):
-    print("TEST")
+    # compute dArg.qfrc_applied as a function on ten_length and ten_velocity
+    pass
+
+cdef mjtNum myGain(const mjModel* mArg, const mjData* dArg, int id):
+    return 0.0
+
+cdef mjtNum myDyn(const mjModel* mArg, const mjData* dArg, int id):
+    return 0.0
 
 cdef class MjSim(object):
     """MjSim represents a running simulation including its state.
@@ -89,8 +131,14 @@ cdef class MjSim(object):
         self.render_callback = render_callback
         self.extras = {}
         self.set_substep_callback(substep_callback, userdata_names)
+        for i in range(10):
+            self.model.actuator_gaintype[i] = 1
         global mjcb_control
+        global mjcb_act_gain
+        global mjcb_act_dyn
         mjcb_control = myController
+        mjcb_act_gain = myGain
+        mjcb_act_dyn = myDyn
 
     def reset(self):
         """

@@ -24,9 +24,9 @@ cdef extern from "mujoco.h" nogil:
     mjfGeneric  mjcb_control;
     # mjfSensor   mjcb_sensor;
     # mjfTime     mjcb_time;
-    # mjfAct      mjcb_act_dyn;
-    # mjfAct      mjcb_act_gain;
-    # mjfAct      mjcb_act_bias;
+    mjfAct      mjcb_act_dyn;
+    mjfAct      mjcb_act_gain;
+    mjfAct      mjcb_act_bias;
     # mjfSolImp   mjcb_sol_imp;
     # mjfSolRef   mjcb_sol_ref;
     #
