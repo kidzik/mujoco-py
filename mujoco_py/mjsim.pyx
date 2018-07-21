@@ -3,22 +3,32 @@ from mujoco_py.utils import remove_empty_lines
 from mujoco_py.builder import build_callback_fn
 from threading import Lock
 from libc.math cimport fmod
+import math
 
 _MjSim_render_lock = Lock()
 
 ctypedef void (*substep_udd_t)(const mjModel* m, mjData* d)
 
-len_min = -1
-len_opt = .3
-len_max = .75
-
 # The FL curve is just a piecewise quadratic bounded from below by 0.
-def FL(t):
+def FL(t, len_min, len_max):
+    active = 0
+    passive = 0
+    len_opt = len_min + (len_max - len_min)/2.0
     if t < len_min or t > len_max:
-        return 0.0
-    if t < len_opt:
-        return 1.0 - ( (t-len_opt)/(len_opt - len_min) )**2
-    return 1.0 - ( (t-len_opt)/(len_max - len_opt) )**2
+        active = 0.0
+    elif t < len_opt:
+        active = 1.0 - ( (t-len_opt)/(len_opt - len_min) )**2
+    else:
+        active = 1.0 - ( (t-len_opt)/(len_max - len_opt) )**2
+    
+    # TODO: very rough passive force
+    if (t < len_opt):
+        passive = 0.0
+    else:
+        passive = ( (t - len_opt) / (len_max - len_min) )**2
+    if passive > 1.0:
+        passive = 1.0
+    return passive + active
 
 max_shortening = -1
 eccentric_multiplier = 1.4
@@ -41,10 +51,20 @@ def FV(t):
     B = -iso_slope * C**2
     
     return A + B/(t + C)
-    
+
 cdef void myController(const mjModel* mArg, mjData* dArg):
-    # compute dArg.qfrc_applied as a function on ten_length and ten_velocity
-    pass
+    # compute dArg.qfrc_applied as a function on ten_length and ten_velocity    
+    for i in range(mArg.ntendon):
+        len_min = mArg.tendon_range[i*2]
+        len_max = mArg.tendon_range[i*2+1]
+
+        norm_len = (dArg.ten_length[i] - len_min) / (len_max - len_min)
+        norm_fl = FL(norm_len, 0, 1)
+        norm_fv = FV(dArg.ten_velocity[i] / (len_max - len_min) )
+        norm_force = norm_fv * norm_fl
+        gear = mArg.actuator_gear[6*i] 
+        dArg.qfrc_applied[i] = norm_force * gear * dArg.ctrl[i]  # TODO: activation
+        print("Tendo %d: L = %f, norm L = %f, vel = %f, FV = %f, FL = %f, ctrl = %f, gear = %f -> force = %f" % (i, dArg.ten_length[i], norm_len, dArg.ten_velocity[i], norm_fv, norm_fl, dArg.ctrl[i], gear, dArg.qfrc_applied[i]) )
 
 cdef mjtNum myGain(const mjModel* mArg, const mjData* dArg, int id):
     return 0.0
