@@ -20,7 +20,7 @@ def FL(t, len_min, len_max, ctrl):
         active = 1.0 - ( (t-len_opt)/(len_opt - len_min) )**2
     else:
         active = 1.0 - ( (t-len_opt)/(len_max - len_opt) )**2
-    
+
     # TODO: very rough passive force
     if (t < len_opt):
         passive = 0.0
@@ -49,11 +49,11 @@ def FV(t):
         C = (A - 1) / iso_slope
 
     B = -iso_slope * C**2
-    
+
     return A + B/(t + C)
 
 cdef void myController(const mjModel* mArg, mjData* dArg):
-    # compute dArg.qfrc_applied as a function on ten_length and ten_velocity    
+    # compute dArg.qfrc_applied as a function on ten_length and ten_velocity
     for i in range(mArg.ntendon):
         len_min = mArg.tendon_lengthspring[i] * 0.5 #mArg.tendon_range[i*2]
         len_max = mArg.tendon_lengthspring[i] * 1.5 #mArg.tendon_range[i*2+1]
@@ -64,13 +64,26 @@ cdef void myController(const mjModel* mArg, mjData* dArg):
         norm_force = norm_fv * norm_fl
         gear = mArg.actuator_gear[6*i] / 20.0 # TODO: not clear why this needs to go down a lot, units?
         dArg.qfrc_applied[i] = norm_force * gear  # TODO: activation
-        print("Tendon %d: L = %f, norm L = %f, vel = %f, FV = %f, FL = %f, ctrl = %f, gear = %f -> force = %f" % (i, dArg.ten_length[i], norm_len, dArg.ten_velocity[i], norm_fv, norm_fl, dArg.ctrl[i], gear, dArg.qfrc_applied[i]) )
+        print("Tendon %d: L = %f, norm L = %f, vel = %f, FV = %f, FL = %f, ctrl = %f, gear = %f -> force = %f, d_act = %f, activation = %f" % (i, dArg.ten_length[i], norm_len, dArg.ten_velocity[i], norm_fv, norm_fl, dArg.ctrl[i], gear, dArg.qfrc_applied[i], dArg.act_dot[i], dArg.act[i]) )
+
 
 cdef mjtNum myGain(const mjModel* mArg, const mjData* dArg, int id):
     return 0.0
 
+Tact = 0.01
+Tdeact = 0.04
+
 cdef mjtNum myDyn(const mjModel* mArg, const mjData* dArg, int id):
-    return 0.0
+    #  implements custom activation dynamics: it must return the value of mjData.act_dot for the specified actuator.
+    if dArg.ctrl[id]>dArg.act[id]:
+            act_dot = (dArg.ctrl[id] - dArg.act[id]) / (Tact * (0.5 + 1.5 * dArg.act[id]))
+    else:
+        act_dot = (dArg.ctrl[id] - dArg.act[id]) / (Tdeact / (0.5 + 1.5 * dArg.act[id]))
+
+    print(act_dot) # never printed
+
+    return act_dot
+
 
 cdef class MjSim(object):
     """MjSim represents a running simulation including its state.
@@ -151,6 +164,8 @@ cdef class MjSim(object):
         self.render_callback = render_callback
         self.extras = {}
         self.set_substep_callback(substep_callback, userdata_names)
+        for i in range(10):
+            self.model.actuator_gaintype[i] = 1
         global mjcb_control
         global mjcb_act_gain
         global mjcb_act_dyn
@@ -190,6 +205,7 @@ cdef class MjSim(object):
             for _ in range(self.nsubsteps):
                 self.substep_callback()
                 mj_step(self.model.ptr, self.data.ptr)
+
 
     def render(self, width=None, height=None, *, camera_name=None, depth=False,
                mode='offscreen', device_id=-1):
