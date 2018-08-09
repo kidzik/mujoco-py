@@ -22,12 +22,13 @@ def FL(t, len_min, len_max, ctrl):
         active = 1.0 - ( (t-len_opt)/(len_max - len_opt) )**2
 
     # TODO: very rough passive force
-    if (t < len_opt):
-        passive = 0.0
-    else:
-        passive = ( (t - len_opt) / (len_max - len_min) )**2
-    if passive > 1.0:
-        passive = 1.0
+    # if (t < len_opt):
+    #     passive = 0.0
+    # else:
+    #     passive = ( (t - len_opt) / (len_max - len_min) )**2
+    # if passive > 1.0:
+    #     passive = 1.0
+    passive = 0.0
     return passive + active * ctrl
 
 max_shortening = -1
@@ -64,7 +65,8 @@ cdef void myController(const mjModel* mArg, mjData* dArg):
         norm_force = norm_fv * norm_fl
         gear = mArg.actuator_gear[6*i] / 20.0 # TODO: not clear why this needs to go down a lot, units?
         dArg.qfrc_applied[i] = norm_force * gear  # TODO: activation
-        print("Tendon %d: L = %f, norm L = %f, vel = %f, FV = %f, FL = %f, ctrl = %f, gear = %f -> force = %f, d_act = %f, activation = %f" % (i, dArg.ten_length[i], norm_len, dArg.ten_velocity[i], norm_fv, norm_fl, dArg.ctrl[i], gear, dArg.qfrc_applied[i], dArg.act_dot[i], dArg.act[i]) )
+	
+        # print("Tendon %d: L = %f, norm L = %f, vel = %f, FV = %f, FL = %f, ctrl = %f, gear = %f -> force = %f, d_act = %f, activation = %f" % (i, dArg.ten_length[i], norm_len, dArg.ten_velocity[i], norm_fv, norm_fl, dArg.ctrl[i], gear, dArg.qfrc_applied[i], dArg.act_dot[i], dArg.act[i]) )
 
 
 cdef mjtNum myGain(const mjModel* mArg, const mjData* dArg, int id):
